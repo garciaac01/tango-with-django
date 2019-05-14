@@ -129,7 +129,7 @@ class Chapter4ViewTests(TestCase):
         response = self.client.get(reverse('rango:about'))
         self.assertIn(b'This tutorial has been put together by',response.content)
 
-'''
+
 class Chapter5ViewTests(TestCase):
     def setUp(self):
         try:
@@ -168,6 +168,7 @@ class Chapter5ViewTests(TestCase):
         from rango.admin import PageAdmin
         self.assertIn('category', PageAdmin.list_display)
         self.assertIn('url', PageAdmin.list_display)
+'''
 class Chapter6ViewTests(TestCase):
     def setUp(self):
         try:
