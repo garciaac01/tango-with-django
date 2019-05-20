@@ -1,10 +1,16 @@
 from django.shortcuts import render
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseRedirect
+from django.contrib.auth import authenticate, login, logout
+from django.urls import reverse
+from django.contrib.auth.decorators import login_required
+
+from datetime import datetime
 
 from rango.models import Category, Page
-from rango.forms import CategoryForm, PageForm
+from rango.forms import CategoryForm, PageForm, UserForm, UserProfileForm
 
 def index(request):
+    request.session.set_test_cookie()
     # Query the database for a list of All categories currently stored.
     # Order the categores by the number of likes in descending order.
     # Retrieve the top 5 only -- or all if less than 5.
@@ -18,12 +24,19 @@ def index(request):
     context_dict['categories'] = category_list
     context_dict['pages'] = page_list
 
-    # Render the response and send it back!
+    # Call the helper function to handle the cookies
+    visitor_cookie_handler(request)
+    context_dict['visits'] = request.session['visits']
+    # Return the response back to the user, updating any cookies that need changed.
     return render(request, 'rango/index.html', context_dict)
 
 
 def about(request):
-    return render(request, 'rango/about.html')
+    # Call the helper function to handle the cookies
+    visitor_cookie_handler(request)
+    context_dict = {}
+    context_dict['visits'] = request.session['visits']
+    return render(request, 'rango/about.html', context_dict)
 
 
 def show_category(request, category_name_slug):
@@ -58,6 +71,7 @@ def show_category(request, category_name_slug):
     return render(request, 'rango/category.html', context_dict)
 
 
+@login_required
 def add_category(request):
     form = CategoryForm()
 
@@ -83,6 +97,7 @@ def add_category(request):
     return render(request, 'rango/add_category.html', {'form': form})
 
 
+@login_required
 def add_page(request, category_name_slug):
     try:
         category = Category.objects.get(slug=category_name_slug)
@@ -105,3 +120,147 @@ def add_page(request, category_name_slug):
 
     context_dict = {'form': form, 'category': category}
     return render(request, 'rango/add_page.html', context_dict)
+
+
+def register(request):
+    # A boolean value for telling the template
+    # whether the registration was successful.
+    # Set to False initially. Code changes value to
+    # True when registration succeeds.
+    registered = False
+
+    # If it's a HTTP POST, we're interested in processing form data.
+    if request.method == 'POST':
+        # Attempt to grab information from the raw form information.
+        # Note that we make use of both UserForm and UserProfileForm
+        user_form = UserForm(data=request.POST)
+        profile_form = UserProfileForm(data=request.POST)
+
+        # If the two forms are valid...
+        if user_form.is_valid() and profile_form.is_valid():
+            # Save the user's form data to the database.
+            user = user_form.save()
+
+            # Now we has the password with the set_password method.
+            # Once hashed, we can update the user object.
+            user.set_password(user.password)
+            user.save()
+
+            # Now sort out the UserProfile instance.
+            # Since we need to set the user attribute ourselves,
+            # we set commit=False. This delays saving the model
+            # until we're ready to avoid integrity problems.
+            profile = profile_form.save(commit=False)
+            profile.user = user
+
+            # Did the user provide a profile picture?
+            # If so, we need to get it from the input form and
+            # put it in the UserProfile model.
+            if 'picture' in request.FILES:
+                profile.picture = request.FILES['picture']
+
+            # Now we save the UserProfile model instance.
+            profile.save()
+
+            # Update our variable to indicate that the template
+            # registration was successful.
+            registered = True
+        else:
+            # Invalid form or forms - mistakes or something else?
+            # Print problems to the terminal.
+            print(user_form.errors, profile_form.errors)
+    else:
+        # Not a HTTP POST, so we render our form using two ModelForm instances.
+        # These forms will be blank, ready for user input.
+        user_form = UserForm()
+        profile_form = UserProfileForm()
+
+    # Render the template depending on the context.
+    return render(request, 'rango/register.html', {'user_form': user_form,
+                    'profile_form': profile_form, 'registered': registered})
+
+
+def user_login(request):
+    # If the request is a HTTP POST, try to pull out the relevant information.
+    if request.method == 'POST':
+        # Gather the username and password provided by the user.
+        # This information is obtained from the login form.
+        # We use request.POST.get('<variable>') as opposed
+        # to request.POST['<variable>'], because the
+        # request.POST.get('<variable>') returns None if the
+        # value does not exist, while request.POST['<variable>']
+        # will raise a KeyError exception.
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+
+        # Use Django's machinery to attempt to see if the username/password
+        # combination is valid - a User object is returned if it is.
+        user = authenticate(username=username, password=password)
+
+        # If we have a User object, the details are correct.
+        # If None (Python's way of representing the absence of a value), no user
+        # with matching credentials was found.
+        if user:
+            # Is the account active? It could have been disabled.
+            if user.is_active:
+                # If the account is valid and active, we can log the user in.
+                # We'll send the user back to the homepage.
+                login(request, user)
+                return HttpResponseRedirect(reverse('rango:index'))
+            else:
+                # An inactive account was used - no logging in!
+                return HttpResponse("Your Rango account is disabled")
+        else:
+            # Bad login details were provided. So we can't log the user in.
+            print("Invalid login details: {0}, {1}".format(username, password))
+            return HttpResponse("Invalid login details supplied.")
+    # The request is not a HTTP POST, so display the login form.
+    # This scenario would most likelyl be a HTTP GET.
+    else:
+        return render(request, 'rango/login.html')
+
+
+@login_required
+def restricted(request):
+    return render(request, 'rango/restricted.html')
+
+
+# Use the login_required() decorator to ensure only those logged in can
+# access the view.
+@login_required
+def user_logout(request):
+    # Since we know the user is logged in, we can now just log them out.
+    logout(request)
+    # Take the user back to the homepage.
+    return HttpResponseRedirect(reverse('index'))
+
+
+def get_server_side_cookie(request, cookie, default_val=None):
+    val = request.session.get(cookie)
+    if not val:
+        val = default_val
+    return val
+
+
+def visitor_cookie_handler(request):
+    # Get the number of visits to the site.
+    # WE use the COOKIES.get() function to obtain the visits cookie.
+    # If the cookie exists, the value returned is casted to an integer.
+    # If the cookie doesn't exist, then teh default value of 1 is used.
+    visits = int(get_server_side_cookie(request, 'visits', '1'))
+
+    last_visit_cookie = get_server_side_cookie(request, 'last_visit', str(datetime.now()))
+    last_visit_time = datetime.strptime(last_visit_cookie[:-7],
+                                        '%Y-%m-%d %H:%M:%S')
+
+    # If it's been more than a day since the last visit...
+    if (datetime.now() - last_visit_time).days > 0:
+        visits = visits + 1
+        # Update the last visit cookie now that we have updated the count
+        request.session['last_visit'] = str(datetime.now())
+    else:
+        # Set the last visit cookie
+        request.session['last_visit'] = last_visit_cookie
+
+    # Update/set the visit cookie
+    request.session['visits'] = visits
