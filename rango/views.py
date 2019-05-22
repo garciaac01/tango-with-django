@@ -8,6 +8,8 @@ from datetime import datetime
 
 from rango.models import Category, Page
 from rango.forms import CategoryForm, PageForm, UserForm, UserProfileForm
+from rango.bing_search import run_query, read_bing_key
+
 
 def index(request):
     request.session.set_test_cookie()
@@ -156,3 +158,16 @@ def visitor_cookie_handler(request):
 
     # Update/set the visit cookie
     request.session['visits'] = visits
+
+
+def search(request):
+    result_list = []
+    query = ''
+
+    if request.method == 'POST':
+        query = request.POST['query'].strip()
+        if query:
+            # Run our Bing function to get the results list
+            result_list = run_query(query)
+
+    return render(request, 'rango/search.html', {'result_list': result_list, 'query': query})
