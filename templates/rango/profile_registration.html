@@ -2,7 +2,7 @@
 {% load staticfiles %}
 
 {% block title_block %}
-Profile Registration
+Registration - Step 2
 {% endblock %}
 
 {% block body_block %}
@@ -13,8 +13,6 @@ Profile Registration
 </div>
 <form id="user_form" method="post" action="{% url 'rango:register_profile' %}" enctype="multipart/form-data">
     {% csrf_token %}
-
-    <!--Display each form-->
     {{ form.as_p }}
 
     <!--Provide a button to click to submit the form.-->

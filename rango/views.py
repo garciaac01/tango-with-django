@@ -4,6 +4,8 @@ from django.contrib.auth import authenticate, login, logout
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+from django.views import View
+from django.utils.decorators import method_decorator
 
 from datetime import datetime
 
@@ -42,6 +44,13 @@ def about(request):
     return render(request, 'rango/about.html', context_dict)
 
 
+class AboutView(View):
+    def get(self, request):
+        # view logic
+        visitor_cookier_handler(request)
+        return render(request, 'rango/about.html', context={'visits': request.session['visits']})
+
+
 def show_category(request, category_name_slug):
     # Create a context dictionary which we canpass
     # to the template rendering engine
@@ -55,7 +64,7 @@ def show_category(request, category_name_slug):
         context_dict['query'] = category.name
         # Retrieve all of the associated pages
         # Note that filter() will return a list of page objects or an empty list
-        pages = Page.objects.filter(category=category)
+        pages = Page.objects.filter(category=category).order_by('-views')
 
         # Adds our results list to the template context under name pages.
         context_dict['pages'] = pages
@@ -104,6 +113,25 @@ def add_category(request):
     # Will handle the bad form, new form, or no form supplied cases
     # Render the form with error messages (if any).
     return render(request, 'rango/add_category.html', {'form': form})
+
+
+class AddCategoryView(View):
+
+    @method_decorator(login_required)
+    def get(self, request):
+        form = CategoryForm()
+        return render(request, 'rango/add_category.html', {'form': form})
+
+    @method_decorator(login_required)
+    def post(self, request):
+        form = CategoryForm()
+        form = CategoryForm(request.POST)
+        if form.is_valid():
+            form.save(commit=True)
+            return index(request)
+        else:
+            print(form.errors)
+        return render(request, 'rango/add_category.html', {'form': form})
 
 
 @login_required
@@ -195,6 +223,7 @@ def goto_url(request):
     return redirect(reverse('rango:index'))
 
 
+@login_required
 def register_profile(request):
     form = UserProfileForm()
 
@@ -233,6 +262,35 @@ def profile(request, username):
 
     return render(request, 'rango/profile.html',
         {'userprofile': userprofile, 'selecteduser': user, 'form': form})
+
+
+class ProfileView(View):
+
+    def get_user_details(self, username):
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            return redirect('index')
+
+        userprofile = UserProfile.objects.get_or_create(user=user)[0]
+        form = UserProfileForm({'website': userprofile.website, 'picture': userprofile.picture})
+        return (user, userprofile, form)
+
+    @method_decorator(login_required)
+    def get(self, request, username):
+        (user, userprofile, form) = self.get_user_details(username)
+        return render(request, 'rango/profile.html', {'userprofile': userprofile, 'selecteduser': user, 'form': form})
+
+    @method_decorator(login_required)
+    def post(self, request, username):
+        (user, userprofile, form) = self.get_user_details(username)
+        form = UserProfileForm(request.POST, request.FILES, instance=userprofile)
+        if form.is_valid():
+            form.save(commit=True)
+            return redirect('profile', user.username)
+        else:
+            print(form.errors)
+        return render(request, 'rango/profile.html', {'userprofile': userprofile, 'selecteduser': user, 'form': form})
 
 
 def list_profiles(request):
