@@ -1,0 +1,23 @@
+{% extends 'rango/base.html' %}
+{% load staticfiles %}
+
+{% block title_block %}
+Profile Registration
+{% endblock %}
+
+{% block body_block %}
+<div class="jumbotron p-4">
+    <div class="container">
+        <h1 class="jumbotron-heading">Add Your Picture and URL</h1>
+    </div>
+</div>
+<form id="user_form" method="post" action="{% url 'rango:register_profile' %}" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <!--Display each form-->
+    {{ form.as_p }}
+
+    <!--Provide a button to click to submit the form.-->
+    <input type="submit" name="submit" value="Register" />
+</form>
+{% endblock %}

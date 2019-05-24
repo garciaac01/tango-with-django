@@ -1,12 +1,13 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 from django.http import HttpResponse, HttpResponseRedirect
 from django.contrib.auth import authenticate, login, logout
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
 
 from datetime import datetime
 
-from rango.models import Category, Page
+from rango.models import Category, Page, UserProfile
 from rango.forms import CategoryForm, PageForm, UserForm, UserProfileForm
 from rango.bing_search import run_query, read_bing_key
 
@@ -51,7 +52,7 @@ def show_category(request, category_name_slug):
         # If we can't, the get() method raises a DoesNotExist exception.
         # So the get() method returns one model instance or raises an exception
         category = Category.objects.get(slug=category_name_slug)
-
+        context_dict['query'] = category.name
         # Retrieve all of the associated pages
         # Note that filter() will return a list of page objects or an empty list
         pages = Page.objects.filter(category=category)
@@ -68,6 +69,12 @@ def show_category(request, category_name_slug):
         # the template willdisplay "no category" message for us
         context_dict['category'] = None
         context_dict['pages'] = None
+
+    if request.method == 'POST':
+        context_dict['query'] = request.POST['query'].strip()
+        if context_dict['query']:
+            # Run our Bing function to get the results list
+            context_dict['result_list'] = run_query(context_dict['query'])
 
     # Go render the response and return it to the client.
     return render(request, 'rango/category.html', context_dict)
@@ -171,3 +178,63 @@ def search(request):
             result_list = run_query(query)
 
     return render(request, 'rango/search.html', {'result_list': result_list, 'query': query})
+
+
+def goto_url(request):
+    page_id = None
+    if request.method == 'GET':
+        if 'page_id' in request.GET:
+            page_id = request.GET['page_id']
+            try:
+                page = Page.objects.get(pk=page_id)
+                page.views += 1
+                page.save()
+                return redirect(page.url)
+            except:
+                pass
+    return redirect(reverse('rango:index'))
+
+
+def register_profile(request):
+    form = UserProfileForm()
+
+    # A HTTP POST?
+    if request.method == 'POST':
+        form = UserProfileForm(request.POST, request.FILES)
+
+        if form.is_valid():
+            user_profile = form.save(commit=False)
+            user_profile.user = request.user
+            user_profile.save()
+            return redirect('rango:index')
+        else:
+            print(form.errors)
+    return render(request, 'rango/profile_registration.html', {'form': form})
+
+
+@login_required
+def profile(request, username):
+    try:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
+        return redirect('index')
+
+    userprofile = UserProfile.objects.get_or_create(user=user)[0]
+    form = UserProfileForm(
+        {'website': userprofile.website, 'picture': userprofile.picture})
+
+    if request.method == 'POST':
+        form = UserProfileForm(request.POST, request.FILES, instance=userprofile)
+        if form.is_valid():
+            form.save(commit=True)
+            return redirect('rango:profile', user.username)
+        else:
+            print(form.errors)
+
+    return render(request, 'rango/profile.html',
+        {'userprofile': userprofile, 'selecteduser': user, 'form': form})
+
+
+def list_profiles(request):
+    users = UserProfile.objects.all()
+    return render(request, 'rango/list_profiles.html', {'users':users})
