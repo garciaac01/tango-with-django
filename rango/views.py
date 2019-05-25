@@ -47,7 +47,7 @@ def about(request):
 class AboutView(View):
     def get(self, request):
         # view logic
-        visitor_cookier_handler(request)
+        visitor_cookie_handler(request)
         return render(request, 'rango/about.html', context={'visits': request.session['visits']})
 
 
