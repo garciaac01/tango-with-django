@@ -61,11 +61,12 @@
         <div class="row">
             <nav class="col-md-2 d-none d-md-block bg-light sidebar">
                 <div class="sidebar-sticky">
-
-                    {% block sidebar_block %}
-                    {% get_category_list category %}
-                    {% endblock %}
-
+                    <input type="search" class="form-control ds-input" id="suggestion" placeholder="Search...">
+                    <div id="cats">
+                        {% block sidebar_block %}
+                        {% get_category_list category %}
+                        {% endblock %}
+                    </div>
                 </div>
             </nav>
 
@@ -92,6 +93,7 @@
 
             <script src="https://getbootstrap.com/docs/4.2/examples/dashboard/dashboard.js"></script>
             <script src="{% static 'js/rango-jquery.js' %}"></script>
+            <script src="{% static 'js/rango-ajax.js' %}"></script>
 </body>
 
 </html>

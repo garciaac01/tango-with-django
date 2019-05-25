@@ -10,6 +10,15 @@
 <div class="jumbotron p-4">
     <div class="container">
         <h1 class="jumbotron-heading">{{ category.name }}</h1>
+        <div>
+            <strong id="like_count">{{ category.likes }}</strong> people like this category
+            {% if user.is_authenticated %}
+            <button id="likes" data-catid="{{ category.id }}" class="btn btn-primary btn-sm" type="button">
+                <span data-feather="thumbs-up"></span>
+                Like
+            </button>
+            {% endif %}
+        </div>
     </div>
 </div>
 {% if pages %}
@@ -55,8 +64,13 @@
     <div class="list-group">
         {% for result in result_list %}
         <div class="list-group-item">
+            {% if user.is_authenticated %}
+            <button data-catid="{{category.id}}" data-title="{{ result.title }}" data-url="{{ result.link }}"
+                class="rango-add btn btn-info btn-sm" type="button"><span data-feather="plus"></span>Add</button>
+            {% endif %}
+
             <h4 class="list-group-item-heading">
-                <a href="{{ result.link }}">{{ result.title|safe|escape }}</a>
+                <a href="{{ result.link }}">{{ result.title|safe|escape}}</a>
             </h4>
             <p class="list-group-item-text">{{ result.summary|safe|escape }}</p>
         </div>
